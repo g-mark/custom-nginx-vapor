@@ -1,5 +1,23 @@
-# test-nginx-vapor
-Example of putting NGiNx in front of Vapor on Heroku
+# custom-nginx-vapor
+Example of putting NGiNx in front of Vapor on Heroku - kind of like [test-nginx-vapor](https://github.com/g-mark/test-nginx-vapor), but a little more advanced.
+
+This setup only proxies specific routes to Vapor, and the rest are delivered as static files or a 404.
+
+Any Not found errors deliver the `/Public/404.html` file.
+
+Any server errors (>= 500) from within Vapor deliver the `/Resources/5xx.html` file.
+
+All requests are forced to https.
+
+There are four Vapor routes:
+
+| path | content                      |
+| ---- | ---------------------------- |
+| /    | standard "it works!" message |
+| /hello/:string | Says "hello, :string" |
+| /hi | causes a 404 from within Vapor, delivering the same file as nginx |
+| /crash | causes an internal server error from Vapor |
+
 
 There are two requests handled by NGiNx:
 
@@ -8,12 +26,6 @@ There are two requests handled by NGiNx:
 /other.html
 ```
 
-There are two Vapor routes:
-
-```
-/
-/hello/:string
-```
 
 The setup of this branch is that NGiNx will try for a static file and deliver that.  If it can't find a static file, it will pass the request on to Vapor.  This means that all 404 errors are handled by Vapor.
 

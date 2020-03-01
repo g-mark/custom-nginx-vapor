@@ -11,6 +11,9 @@
 	<p>Here's a static html page: <a href="/index.html">index.html</a></p>
 
 	<p>Here's another static html page: <a href="/other.html">other.html</a></p>
+    
+    <p>Here's a 404 from vapor: <a href="/hi">hi</a></p>
+    <p>Here's an internal vapor error: <a href="/crash/kjhskjhas">/crash/kjhskjhas</a></p>
 }
 
 #embed("base")

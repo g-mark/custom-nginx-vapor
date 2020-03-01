@@ -63,8 +63,8 @@ http {
             include vapor_proxy.conf;
         }
 
-        # custom exact location (`/crash` - forces an internal error)
-        location = /crash {
+        # custom prefix location (`/crash/*` - forces an internal error)
+        location /crash/ {
             include vapor_proxy.conf;
         }
     }
