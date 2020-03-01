@@ -1,0 +1,15 @@
+#set("title") { It works }
+
+#set("body") {
+	<div class="welcome">
+		<img src="/images/it-works.png">
+	</div>
+
+	<p>Here's another vapor page: <a href="/hello/vapor">hello vapor</a></p>
+
+	<p>Here's a static html page: <a href="/index.html">index.html</a></p>
+
+	<p>Here's another static html page: <a href="/other.html">other.html</a></p>
+}
+
+#embed("base")

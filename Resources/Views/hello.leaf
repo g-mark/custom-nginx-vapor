@@ -1,0 +1,16 @@
+#set("title") { Hello, #(name)! }
+
+#set("body") {
+	<h1>Hello, #(name)!</h1>
+	<h2>Parameter test="#(test)"</h2>
+
+	<p>Here's a vapor page: <a href="/">It works</a></p>
+    
+    <p>Here's another vapor page with a query param: <a href="/hello/vapor?test=boo">hello boo</a></p>
+
+	<p>Here's a static html page: <a href="/index.html">index.html</a></p>
+
+	<p>Here's another static html page: <a href="/other.html">other.html</a></p>
+}
+
+#embed("base")
