@@ -1,13 +1,7 @@
 # custom-nginx-vapor
-Example of putting NGiNx in front of Vapor on Heroku - kind of like [test-nginx-vapor](https://github.com/g-mark/test-nginx-vapor), but a little more advanced.
+Example of putting NGiNx in front of Vapor on Heroku - kind of like [test-nginx-vapor](https://github.com/g-mark/test-nginx-vapor), but a little more advanced.  Note: this was built with Vapor 3.  Probably only the custom middleware would need to be updated for Vapor 4.  This repo is mostly about standing up NGiNx in front of Vapor on Heroku.
 
 This setup only proxies specific routes to Vapor, and the rest are delivered as static files or a 404.
-
-Any Not found errors deliver the `/Public/404.html` file.
-
-Any server errors (>= 500) from within Vapor deliver the `/Resources/5xx.html` file.
-
-All requests are forced to https.
 
 There are four Vapor routes:
 
@@ -15,11 +9,11 @@ There are four Vapor routes:
 | ---- | ---------------------------- |
 | /    | standard "it works!" message |
 | /hello/:string | Says "hello, :string" |
-| /hi | causes a 404 from within Vapor, delivering the same file as nginx |
-| /crash | causes an internal server error from Vapor |
+| /hi | causes a 404 from within Vapor, delivering the same file as nginx<br>(nginx has a `/hi` location, but the vapor app doesn't have a `/hi` route) |
+| /crash/:string | causes an internal server error from Vapor<br>(nginx has a `/crash/*` location, and the vapor app tries to parse the extra path component as an int) |
 
 
-There are two requests handled by NGiNx:
+There are two requests handled by NGiNx (well, in addition to all the "assets"):
 
 ```
 /index.html
@@ -27,14 +21,70 @@ There are two requests handled by NGiNx:
 ```
 
 
-The setup of this branch is that NGiNx will try for a static file and deliver that.  If it can't find a static file, it will pass the request on to Vapor.  This means that all 404 errors are handled by Vapor.
+
+### HTTPS
+
+All requests are forced to https, with this goodie in the `nginx.conf.erb`config file:
+
+```
+# Force http requests to be https
+if ($http_x_forwarded_proto != "https") {
+    return 301 https://$host$request_uri;
+}
+```
+
+
+
+### HTTP Errors
+
+Any 404 errors that happen deliver the `/Public/404.html` file.  404 errors can be caught by NGiNx _or_ Vapor. The NGiNx 404 error handling is specified in the `nginx.conf.erb`config file:
+
+```
+# custom error page
+error_page 404 /404.html;
+location = /404.html {
+    internal;
+}
+```
+
+404 errors that happen inside of Vapor are handled using a custom middleware which delivers the same `/Public/404.html` file.  The default in Vapor is to return all errors in a JSON format.  If you're using Leaf as a templating engine, you can also set Leaf up to deliver a custom html error page.  I wrote a custom middleware so that I could use the _exact same file_ for 404s caught be either service.
+
+This middleware is in `HTMLErrorMiddleware.swift`, and is pretty easy to configure, as it supports http status ranges:
+
+```swift
+var middlewares = MiddlewareConfig()
+
+middlewares.use(
+    HTMLErrorMiddleware(
+        .public(file: "404.html", for: 404),		 // use /Public/404.html for all 404 errors
+        .resource(file: "5xx.html", for: 500...) // use /Resources/5xx.html for all >= 500
+    )
+)
+
+services.register(middlewares)
+```
+
+I kind of threw it together, so there's certainly room for improvement.  For example, if no file has been specified for a specific status code, the middleware will just send some plan text.
+
+
+
+## Try it live
+
+It's on a free heroku plan, so if no requests have been made in a little while, it might take a second to warm up:
+
+https://custom-nginx-vapor.herokuapp.com/
+
+
+
+## Setup
 
 #### Heroku setup
 
 1. Create an app
-2. Add official ngnix buildback, I used:  
-   [Heroku Buildpack: NGINX](https://elements.heroku.com/buildpacks/heroku/heroku-buildpack-nginx)  
-   `heroku-community/nginx` (or https://github.com/heroku/heroku-buildpack-nginx.git)
+2. Add my fancy custom buildback, a fork of the Heroku official NGiNx buildpack:  
+   [heroku-buildpack-nginx-vapor](https://github.com/g-mark/heroku-buildpack-nginx-vapor)  
+   `https://github.com/g-mark/heroku-buildpack-nginx-vapor`  
+   Why a custom buildpack?  I wanted one that was built to work with Vapor out of the box.
 3. Add official Vapor buildpack - I used:  
    [Heroku buildpack: swift](https://elements.heroku.com/buildpacks/vapor-community/heroku-buildpack)  
    `vapor/vapor`
@@ -46,7 +96,7 @@ The setup of this branch is that NGiNx will try for a static file and deliver th
 
 #### How it works
 
-When code is pushed to the app's git repo, Heroku will run a post_receive hook that triggers each of the buildpacks added to the app, in the order that they are listed in your `Settings` pane.  This also happes to be the same order that they were added in the above steps: `ngnix` then `vapor`.
+When code is pushed to the app's git repo, Heroku will run a post_receive hook that triggers each of the buildpacks added to the app, in the order that they are listed in your `Settings` pane.  This also happens to be the same order that they were added in the above steps: `ngnix` then `vapor`.
 
 Once both buildpacks have finished building, the `Procfile` is executed.
 
@@ -58,26 +108,30 @@ web: bin/start-nginx Run serve --env production --port 8080 --hostname 0.0.0.0
 - `bin/start-nginx` starts ngnix
 - `Run serve --env production --port 8080 --hostname 0.0.0.0` runs the vapor app.
 
-When ngnix is built, it uses the config file at `config/nginx.conf.erb` as the primary configuration for the ngnix server.  Towards the bottom of the file is where you'll find the magic sauce:
+When ngnix is built, it uses the config file at `config/nginx.conf.erb` as the primary configuration for the ngnix server.  This contains the core routing needed to have NGiNx stand as a proxy in front of Vapor.  In my other repo - [test-nginx-vapor](https://github.com/g-mark/test-nginx-vapor) - the setup is much simpler.  This one works under the notion that you want NGiNx to do most of the basic http work like serving static files, forcing https, and serving error pages.  To support this notion there is a single config file that has the common (most likely _all_) of the reverse proxy config - `vapor_proxy.conf.erb` - and the main NGiNx config will include that as needed.
+
+Here's what I mean:
 
 ```
-   root /app/Public;
-   
-   # Serve all public/static files via nginx and then fallback to Vapor for the rest
-   try_files $uri @proxy;
-   
-   location @proxy {
-      proxy_pass http://127.0.0.1:8080;
-      proxy_pass_header Server;
-      proxy_set_header Host $host;
-      proxy_set_header X-Real-IP $remote_addr;
-      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-      proxy_connect_timeout 3s;
-      proxy_read_timeout 10s;
-      proxy_redirect off;
-   }
+# custom exact location (`/` - welcome)
+location = / {
+    include vapor_proxy.conf;
+}
+
+# custom prefix location (`/hello/*` - all hello routes)
+location /hello/ {
+    include vapor_proxy.conf;
+}
+
+# custom exact location (`/hi` - forces a 404 from vapor)
+location = /hi {
+    include vapor_proxy.conf;
+}
+
+# custom prefix location (`/crash/*` - forces an internal error)
+location /crash/ {
+    include vapor_proxy.conf;
+}
 ```
 
-So, when a URL is requested, ngnix will see if there's a file it can deliver from the `Public` directory (everything in the git repo is installed at `/app`, so the `root /app/Public` directive in the config file points to our `Public` directory as the root of the web server).  If it can't find a file, it'll pas the URL on to the Vapor app.
 
-NGiNx listens on the normal http port (80), and when needed, proxies the requests on to port 8080, where the Vapor app is listening.
