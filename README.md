@@ -70,7 +70,7 @@ I kind of threw it together, so there's certainly room for improvement.  For exa
 
 ## Try it live
 
-It's on a free heroku plan, so if no requests have been made in a little while, it might take a second to warm up:
+It's on a free Heroku plan, so if no requests have been made in a little while, it might take a second to warm up:
 
 https://custom-nginx-vapor.herokuapp.com/
 
@@ -81,7 +81,7 @@ https://custom-nginx-vapor.herokuapp.com/
 #### Heroku setup
 
 1. Create an app
-2. Add my fancy custom buildback, a fork of the Heroku official NGiNx buildpack:  
+2. Add my fancy custom buildpack, a fork of the Heroku official NGiNx buildpack:  
    [heroku-buildpack-nginx-vapor](https://github.com/g-mark/heroku-buildpack-nginx-vapor)  
    `https://github.com/g-mark/heroku-buildpack-nginx-vapor`  
    Why a custom buildpack?  I wanted one that was built to work with Vapor out of the box.
